@@ -17,8 +17,7 @@
   const SEL_PHOTO_LINK      = 'a[aria-label^="Photo - "]';
   const SEL_MOVE_TO_TRASH   = 'button[aria-label="Move to trash"]';
   const SEL_DIALOG          = '[role="dialog"]';
-  const SEL_TRASH_DIALOG    = '[role="dialog"][aria-label*="rash"]';
-  const SEL_CONFIRM_TEXT    = 'Got it';   // button text in the confirmation dialog
+  const SEL_CONFIRM_TEXTS   = ['Move to trash', 'Got it'];  // varies by dialog variant
   const SEL_CANCEL_TEXT     = 'Cancel';
 
   // ─── Guard: prevent parallel runs ────────────────────────────────────────────
@@ -97,11 +96,11 @@
   }
 
   async function confirmDeletion() {
-    const dialog = await waitForElement(SEL_TRASH_DIALOG);
-    // Find "Got it" button by text content
+    const dialog = await waitForElement(SEL_DIALOG);
+    await sleep(300); // let dialog buttons render
     const buttons = Array.from(dialog.querySelectorAll('button'));
-    const confirm = buttons.find(b => b.textContent.trim() === SEL_CONFIRM_TEXT)
-                 || buttons.find(b => b.textContent.trim() !== SEL_CANCEL_TEXT); // fallback: first non-cancel button
+    const confirm = buttons.find(b => SEL_CONFIRM_TEXTS.includes(b.textContent.trim()))
+                 || buttons.find(b => b.textContent.trim() !== SEL_CANCEL_TEXT);
     if (!confirm) throw new Error(`Could not find confirm button in dialog. Button texts: ${buttons.map(b => b.textContent.trim()).join(', ')}`);
     confirm.click();
   }
@@ -141,7 +140,7 @@
       await confirmDeletion();
 
       // Wait for the confirmation dialog to close and DOM to settle
-      await waitForElementGone(SEL_TRASH_DIALOG);
+      await waitForElementGone(SEL_DIALOG);
       await waitForDomSettle(SETTLE_MS);
 
       totalDeleted += selected;
