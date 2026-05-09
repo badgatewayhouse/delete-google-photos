@@ -17,6 +17,7 @@
   const SEL_PHOTO_LINK      = 'a[aria-label^="Photo - "]';
   const SEL_MOVE_TO_TRASH   = 'button[aria-label="Move to trash"]';
   const SEL_DIALOG          = '[role="dialog"]';
+  const SEL_TRASH_DIALOG    = '[role="dialog"][aria-label*="rash"]';
   const SEL_CONFIRM_TEXT    = 'Got it';   // button text in the confirmation dialog
   const SEL_CANCEL_TEXT     = 'Cancel';
 
@@ -52,11 +53,15 @@
   }
 
   function waitForElementGone(selector, timeout = TIMEOUT_MS) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const start = Date.now();
       const check = () => {
-        if (!document.querySelector(selector)) return resolve();
-        if (Date.now() - start > timeout) return reject(new Error(`Element "${selector}" did not disappear in time.`));
+        const el = document.querySelector(selector);
+        if (!el || el.offsetHeight === 0) return resolve();
+        if (Date.now() - start > timeout) {
+          log(`Warning: "${selector}" still in DOM after ${timeout}ms, continuing anyway.`);
+          return resolve();
+        }
         setTimeout(check, POLL_MS);
       };
       check();
@@ -92,7 +97,7 @@
   }
 
   async function confirmDeletion() {
-    const dialog = await waitForElement(SEL_DIALOG);
+    const dialog = await waitForElement(SEL_TRASH_DIALOG);
     // Find "Got it" button by text content
     const buttons = Array.from(dialog.querySelectorAll('button'));
     const confirm = buttons.find(b => b.textContent.trim() === SEL_CONFIRM_TEXT)
@@ -135,8 +140,8 @@
       await clickMoveToTrash();
       await confirmDeletion();
 
-      // Wait for the dialog to close and DOM to settle
-      await waitForElementGone(SEL_DIALOG);
+      // Wait for the confirmation dialog to close and DOM to settle
+      await waitForElementGone(SEL_TRASH_DIALOG);
       await waitForDomSettle(SETTLE_MS);
 
       totalDeleted += selected;
