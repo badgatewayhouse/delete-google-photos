@@ -38,7 +38,7 @@
       const start = Date.now();
       const check = () => {
         const el = document.querySelector(selector);
-        if (el) return resolve(el);
+        if (el && el.offsetHeight > 0) return resolve(el);
         if (Date.now() - start > timeout) {
           return reject(new Error(
             `Timed out waiting for "${selector}". ` +
@@ -97,7 +97,7 @@
 
   async function confirmDeletion() {
     const dialog = await waitForElement(SEL_DIALOG);
-    await sleep(300); // let dialog buttons render
+    await sleep(500); // let dialog buttons render
     const buttons = Array.from(dialog.querySelectorAll('button'));
     const confirm = buttons.find(b => SEL_CONFIRM_TEXTS.includes(b.textContent.trim()))
                  || buttons.find(b => b.textContent.trim() !== SEL_CANCEL_TEXT);
@@ -120,7 +120,7 @@
 
       // Scroll to trigger lazy-loading of more photos before selecting
       window.scrollTo(0, document.body.scrollHeight);
-      await sleep(500);
+      await sleep(1000);
 
       const photoCount = document.querySelectorAll(SEL_PHOTO_LINK).length;
       if (photoCount === 0) {
