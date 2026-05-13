@@ -11,6 +11,12 @@
   const TIMEOUT_MS = 15000;   // max wait for an element to appear (ms)
   const POLL_MS    = 200;     // polling interval for waitForElement (ms)
 
+  // Virtual-scroll loading
+  const SCROLL_TOP_SETTLE_MS = 600;   // wait after scrolling to top
+  const SCROLL_STEP_MS       = 400;   // wait between scroll steps
+  const SCROLL_END_SETTLE_MS = 800;   // wait after reaching the bottom
+  const RESCAN_ATTEMPTS      = 3;     // full rescans before declaring done
+
   // ─── Selectors ───────────────────────────────────────────────────────────────
   // Verified 2025-05-06 on photos.google.com (English locale)
   const SEL_PHOTO_CHECKBOX  = 'div[role="checkbox"][aria-label^="Photo - "]';
@@ -82,18 +88,24 @@
 
   // ─── Core ────────────────────────────────────────────────────────────────────
 
-  async function scrollAndLoadPhotos() {
-    // Scroll top-to-bottom in steps to trigger virtual DOM rendering
+  // Scroll top-to-bottom in steps so virtual-scroll mounts every section's checkboxes.
+  // `full: false` only resets to top — cheap path for batches where the next unchecked
+  // items will appear near the top after deletions shift the grid up.
+  async function scrollAndLoadPhotos({ full = true } = {}) {
     window.scrollTo(0, 0);
-    await sleep(600);
+    await sleep(SCROLL_TOP_SETTLE_MS);
+    if (!full) return;
+
+    const scroller = document.scrollingElement || document.documentElement;
     const step = window.innerHeight * 0.8;
     let pos = 0;
-    while (pos < document.body.scrollHeight) {
+    while (pos < scroller.scrollHeight) {
+      if (window.__deletePhotosAbort) return;
       pos += step;
       window.scrollTo(0, pos);
-      await sleep(400);
+      await sleep(SCROLL_STEP_MS);
     }
-    await sleep(800);
+    await sleep(SCROLL_END_SETTLE_MS);
   }
 
   function selectPhotos(batchSize) {
@@ -124,6 +136,7 @@
   log(`Config: BATCH_SIZE=${BATCH_SIZE}, DELAY_MS=${DELAY_MS}`);
 
   let totalDeleted = 0;
+  let firstPass = true;
 
   try {
     while (true) {
@@ -132,8 +145,10 @@
         break;
       }
 
-      // Scroll top-to-bottom to populate the virtual DOM with photo checkboxes
-      await scrollAndLoadPhotos();
+      // First pass walks the whole page; later passes just reset to top and let
+      // virtual scroll mount the next batch — full rescan only kicks in on retry.
+      await scrollAndLoadPhotos({ full: firstPass });
+      firstPass = false;
 
       const photoCount = document.querySelectorAll(SEL_PHOTO_LINK).length;
       if (photoCount === 0) {
@@ -142,16 +157,17 @@
       }
 
       let selected = selectPhotos(BATCH_SIZE);
-      if (selected === 0) {
-        // Google Photos virtual scroll may not have rendered all checkboxes yet.
-        // Do one more full scroll pass and retry before giving up.
-        log(`No unselected photos visible — rescrolling to check for more...`);
-        await scrollAndLoadPhotos();
+      let attempt = 0;
+      while (selected === 0 && attempt < RESCAN_ATTEMPTS) {
+        if (window.__deletePhotosAbort) break;
+        attempt++;
+        log(`No unselected photos visible — full rescan ${attempt}/${RESCAN_ATTEMPTS}...`);
+        await scrollAndLoadPhotos({ full: true });
         selected = selectPhotos(BATCH_SIZE);
-        if (selected === 0) {
-          log(`No unselected photos found after rescan. Done!`);
-          break;
-        }
+      }
+      if (selected === 0) {
+        log(`No unselected photos found after ${RESCAN_ATTEMPTS} rescans. Done!`);
+        break;
       }
 
       log(`Selected ${selected} photos. Moving to trash...`);
