@@ -82,6 +82,20 @@
 
   // ─── Core ────────────────────────────────────────────────────────────────────
 
+  async function scrollAndLoadPhotos() {
+    // Scroll top-to-bottom in steps to trigger virtual DOM rendering
+    window.scrollTo(0, 0);
+    await sleep(600);
+    const step = window.innerHeight * 0.8;
+    let pos = 0;
+    while (pos < document.body.scrollHeight) {
+      pos += step;
+      window.scrollTo(0, pos);
+      await sleep(400);
+    }
+    await sleep(800);
+  }
+
   function selectPhotos(batchSize) {
     const checkboxes = Array.from(document.querySelectorAll(SEL_PHOTO_CHECKBOX))
       .filter(el => el.getAttribute('aria-checked') !== 'true');
@@ -118,9 +132,8 @@
         break;
       }
 
-      // Scroll to trigger lazy-loading of more photos before selecting
-      window.scrollTo(0, document.body.scrollHeight);
-      await sleep(1000);
+      // Scroll top-to-bottom to populate the virtual DOM with photo checkboxes
+      await scrollAndLoadPhotos();
 
       const photoCount = document.querySelectorAll(SEL_PHOTO_LINK).length;
       if (photoCount === 0) {
@@ -128,10 +141,17 @@
         break;
       }
 
-      const selected = selectPhotos(BATCH_SIZE);
+      let selected = selectPhotos(BATCH_SIZE);
       if (selected === 0) {
-        log(`No unselected photos found. Done!`);
-        break;
+        // Google Photos virtual scroll may not have rendered all checkboxes yet.
+        // Do one more full scroll pass and retry before giving up.
+        log(`No unselected photos visible — rescrolling to check for more...`);
+        await scrollAndLoadPhotos();
+        selected = selectPhotos(BATCH_SIZE);
+        if (selected === 0) {
+          log(`No unselected photos found after rescan. Done!`);
+          break;
+        }
       }
 
       log(`Selected ${selected} photos. Moving to trash...`);
