@@ -51,6 +51,7 @@ Edit the constants at the top of `delete-google-photos.js`:
 
 - **Deletion moves photos to Trash**, not permanent deletion. Photos stay in Trash for 60 days. To delete immediately: open [Trash](https://photos.google.com/trash) → *Empty trash*.
 - **Keep the tab open and active** while the script runs. Backgrounding the tab may throttle timers.
+- **Prevent your computer from sleeping or locking.** Screen lock or sleep will pause the script (and may suspend network requests mid-deletion). Disable sleep in your OS settings, or use a tool like [Amphetamine](https://apps.apple.com/us/app/amphetamine/id937984704) (macOS) / [caffeinate](https://ss64.com/mac/caffeinate.html) / `systemd-inhibit` (Linux) / *Settings → Power* (Windows) for the duration of the run.
 - **English locale only** — selectors use `aria-label` attributes which change based on browser language. See [Updating Selectors](#updating-selectors) to adapt for other languages.
 - **May break when Google updates their UI.** Check this repo for updated selectors if the script stops working.
 
